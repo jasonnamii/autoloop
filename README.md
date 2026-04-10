@@ -1,5 +1,7 @@
 # autoloop
 
+> 🇰🇷 [한국어 README](./README.ko.md)
+
 **Automated skill optimization loop: execute → score → mutate → repeat.**
 
 ## Prerequisites
