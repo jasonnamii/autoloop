@@ -1,17 +1,37 @@
-# Autoloop
+# autoloop
 
-**Automated skill optimization loop.**
+**Automated skill optimization loop: execute → score → mutate → repeat.**
 
-Execute → Score → Mutate → Keep winners → Repeat. Modes: full (~8 iter), light (~4, default), turbo (~2).
+## Goal
 
-### Example Prompts
+autoloop continuously improves skill quality without manual intervention. Specify a metric and autoloop executes, scores, and mutates skills across iterations. v4.0 runs 2x faster with combined execution+scoring.
 
-```
-"Run autoloop on research-frame" → test→execute→score→mutate→repeat
-"Optimize this skill" → auto-detect mode based on skill type
-```
+## When & How to Use
 
-**Output:** Improved `SKILL.md` + `results.tsv` + `changelog.md`
+Trigger when optimizing skill performance. Three modes: full (8 iterations, analytical skills), light (4, formatting), turbo (2, auto-scorable). Input: skill + success metric + mode. Output: improved version with mutation history and score progression.
+
+## Use Cases
+
+| Scenario | Prompt | What Happens |
+|---|---|---|
+| Optimize analytical skill | `"Improve research-frame accuracy. Full mode."` | 8 iterations: execute→score→mutate→best version with 15-20% lift |
+| Format refinement | `"Tighten deliverable-engine output. Light mode."` | 4 iterations: test→score readability→improve→finalize |
+| Auto-score optimization | `"Maximize code scoring. Turbo mode."` | 2 iterations with auto-scoring; fastest cycle |
+
+## Key Features
+
+- 3 modes: full/light/turbo (8/4/2 iterations)
+- Combined execution+scoring for 2x speed
+- Code-based auto-scoring when metrics are evaluable
+- Single-prompt mutation evolution
+- Git integration: auto-commits optimized skill
+- Full mutation history audit trail
+
+## Works With
+
+- **[skill-builder](https://github.com/jasonnamii/skill-builder)** — feeds improved skills for validation
+- **[git-sync](https://github.com/jasonnamii/git-sync)** — commits and pushes optimized skills
+- **[meta-skill](https://github.com/jasonnamii/meta-skill)** — detects optimization opportunities
 
 ## Installation
 
@@ -29,7 +49,7 @@ Skills placed in `~/.claude/skills/` are automatically available in Claude Code 
 
 ## Part of Cowork Skills
 
-This is one of 25 custom skills. See the full catalog: [https://github.com/jasonnamii/cowork-skills](https://github.com/jasonnamii/cowork-skills)
+This is one of 25+ custom skills. See the full catalog: [github.com/jasonnamii/cowork-skills](https://github.com/jasonnamii/cowork-skills)
 
 ## License
 
