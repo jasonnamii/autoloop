@@ -210,9 +210,25 @@ Wall clock timing for a run. Located at `<run-dir>/timing.json`.
   "executor_duration_seconds": 165.0,
   "grader_start": "2026-01-15T10:32:46Z",
   "grader_end": "2026-01-15T10:33:12Z",
-  "grader_duration_seconds": 26.0
+  "grader_duration_seconds": 26.0,
+  "step_profile": {
+    "4a_failure_analysis": {"tokens": 1200, "duration_ms": 3400},
+    "4b_mutation": {"tokens": 2800, "duration_ms": 8100},
+    "4c_execution": {"tokens": 15000, "duration_ms": 42000},
+    "4c_scoring": {"tokens": 800, "duration_ms": 2100},
+    "4d_decision": {"tokens": 200, "duration_ms": 600}
+  }
 }
 ```
+
+**Fields (v5.0 추가):**
+- `step_profile`: 실험 루프 각 단계별 토큰·시간 프로파일
+  - `4a_failure_analysis`: 실패 분해 단계
+  - `4b_mutation`: 변이 생성 단계
+  - `4c_execution`: 스킬 실행 단계
+  - `4c_scoring`: 채점 단계 (auto_scorable은 코드이므로 duration만 유의미)
+  - `4d_decision`: keep/discard 판정 단계
+- **용도**: changelog에 기록되어 RAR 시 병목 단계 식별에 사용. step 6 결과 전달에서 프로파일 요약 출력
 
 ---
 
