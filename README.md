@@ -2,6 +2,11 @@
 
 **Automated skill optimization loop: execute → score → mutate → repeat.**
 
+## Prerequisites
+
+- **Claude Cowork or Claude Code** environment
+- **Git** — required for version tracking during optimization loops
+
 ## Goal
 
 autoloop continuously improves skill quality without manual intervention. Specify a metric and autoloop executes, scores, and mutates skills across iterations. v4.0 runs 2x faster with combined execution+scoring.
