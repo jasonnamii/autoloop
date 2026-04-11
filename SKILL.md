@@ -306,15 +306,13 @@ BACKUP_PATH="Agent-Ops/_autoloop-lab/{skill-name}"
 
 ---
 
-## 속도 (v4.0 → v5.0)
+## 속도 기준
 
-| 모드 | v4.0 호출/실험 | v5.0 호출/실험 | 개선 |
-|------|--------------|--------------|------|
-| turbo (α=1.0) | ~2 | ~2 | — |
-| light (α≥0.5) | ~4 | ~3 | -25% |
-| full (α<0.5) | ~8 | ~5 | -37% |
-
-추가: 초기 로드 -70%, 4b 토큰 -60%, baseline -80% (조건부).
+| 모드 | 호출/실험 |
+|------|----------|
+| turbo (α=1.0) | ~2 |
+| light (α≥0.5) | ~3 |
+| full (α<0.5) | ~5 |
 
 ---
 
@@ -326,8 +324,6 @@ baseline / binary eval / auto_scorable 표시 / α 판정 / 한 변이씩 / keep
 
 ## Gotchas
 
-- **볼트에서 git 금지:** 실험은 세션 로컬에서만. 볼트에 git init/commit/reset 절대 실행하지 않는다.
-- **세션 유실:** 매 keep마다 changelog+results.tsv를 볼트에 백업. 다음 세션에서 이어서 가능. SKILL.md 중간 변이는 유실될 수 있으나, changelog에서 재현 가능.
 - **뺑뺑이:** 3회 연속 discard 시 반드시 귀인 검증 먼저. RAR 직행 금지.
 - **병목 무시:** 프로파일 없이 최적화 대상 선정하면 감에 의존. 4c가 80%인데 4b를 줄여도 효과 미미.
 - **full 비용 폭발:** 내용적 eval 3개 이하로 시작.
@@ -338,8 +334,6 @@ baseline / binary eval / auto_scorable 표시 / α 판정 / 한 변이씩 / keep
 - **복합 변이:** 다른 eval 타겟하는 복수 변경 금지.
 - **auto_scorable 오판:** grep/regex로 판정 불가능하면 무조건 no.
 - **git reset 범위:** `HEAD~1`만. 2회 연속 discard는 각각 reset.
-- **baseline 부분 재사용:** SKILL.md 변경 시 스킵 불가. 기준 자체가 달라짐.
 - **대안키워드 누적:** changelog에 대안키워드가 10개+ 미시도 시 RAR에서 우선 소화.
-- **볼트 반영 자동화 금지:** step 6에서 반드시 사용자 승인 후 Write. 자동 반영 = 원본 오염 리스크.
 - **handoff.json 누락:** step 7을 건너뛰면 스킬빌더가 skills-plugin에서 구버전을 복사한다. 오토루프 종료 시 반드시 handoff.json 생성.
 - **세션 실험장 조기 삭제:** handoff.json이 있어도 실험장이 없으면 스킬빌더가 읽을 수 없다. step 7 이후 실험장 삭제 금지.
