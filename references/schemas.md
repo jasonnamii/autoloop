@@ -444,3 +444,41 @@ Output from post-hoc analyzer. Located at `<grading-dir>/analysis.json`.
   }
 }
 ```
+
+---
+
+## handoff.json
+
+오토루프 step 7(패키징 대기)의 산출물. `{AUTOLOOP_LAB}/{skill-name}/handoff.json`에 생성.
+
+스킬빌더가 이 파일을 감지하면 skills-plugin 복사를 스킵하고, 세션 실험장의 최적화된 SKILL.md를 직접 사용한다.
+
+```json
+{
+  "skill_name": "example-skill",
+  "session_path": "/sessions/{session-id}/autoloop-lab/example-skill/",
+  "baseline_score": 0.65,
+  "final_score": 0.95,
+  "kept_mutations": 4,
+  "total_experiments": 7,
+  "top_changes": [
+    "E2: 출력 형식 강제를 예시 기반으로 전환",
+    "E5: references/ 로딩 시점을 step 진입 시로 지연"
+  ],
+  "remaining_failures": ["E4: 외부 API 의존 시뮬레이션 한계"],
+  "ready_for": "skill-builder"
+}
+```
+
+**Fields:**
+- `skill_name`: 대상 스킬 이름
+- `session_path`: 세션 실험장 내 최종 스킬 경로 (SKILL.md + references/ 포함)
+- `baseline_score`: 오토루프 시작 시 pass rate
+- `final_score`: 오토루프 종료 시 pass rate
+- `kept_mutations`: keep된 변이 수
+- `total_experiments`: 총 실험 사이클 수
+- `top_changes`: 효과적 변경 Top 3 (changelog에서 추출)
+- `remaining_failures`: 미해결 실패 (빈 배열 가능)
+- `ready_for`: 항상 `"skill-builder"`
+
+**백업:** 볼트 `Agent-Ops/_autoloop-lab/{skill-name}/handoff.json`에도 백업 (changelog와 동일 경로). 세션 유실 시 스킬빌더가 볼트 백업에서 복원 가능.

@@ -1,19 +1,19 @@
 ---
 name: autoloop
 description: |
-  스킬 자동최적화 루프. 실행→채점→변이 반복. α(auto_scorable 비율) 기반 연속체 모드. v6.0: 코워크 세션 네이티브 실행, 세션 유실 대비 백업, 볼트 오염 제거.
+  스킬 자동최적화 루프. 실행→채점→변이 반복. α 연속체 모드. v6.1: 스킬빌더 핸드오프(handoff.json) 내장 — 완료 후 패키징 직행. 코워크 세션 네이티브, 세션 유실 백업, 볼트 오염 제거.
   P1: optimize, improve, autoloop, benchmark, eval, deep optimize, 스킬 최적화.
   P2: 돌려줘, 개선해줘, optimize this, run autoloop on, make better.
   P3: skill optimization, eval benchmark, mutation loop.
   P5: improved SKILL.md, results log, changelog.
-  NOT: 프롬프트엔지니어링(→직접수행), 플러그인(→create-cowork-plugin), 스킬생성(→skill-builder).
+  NOT: 프롬프트엔지니어링(→직접수행), 플러그인(→create-cowork-plugin), 스킬생성(→skill-builder), 패키징(→skill-builder).
 ---
 
 # autoloop — 스킬 자동최적화 루프
 
 에이전트가 반복 실행→채점→변이하며 30% 실패를 0%로 조여간다.
 
-**v6.0: 코워크 세션 네이티브.** 실험 전체가 코워크 세션 내에서 완결. 볼트는 Read(in)+Write(out) 2회만 접촉. 세션 유실 대비 changelog 백업 내장. v5.0 기반(1후보+대안키워드, α 연속체 모드, 병렬 실행, 귀인 검증, 단계별 프로파일).
+**v6.1: 스킬빌더 핸드오프.** step 7 추가 — 최적화 완료 후 handoff.json 생성 → 스킬빌더 패키징으로 자연 연결. v6.0 기반(코워크 세션 네이티브, 볼트 Read(in)+Write(out) 2회, changelog 백업). v5.0 기반(1후보+대안키워드, α 연속체 모드, 병렬 실행, 귀인 검증, 단계별 프로파일).
 
 ---
 
@@ -262,6 +262,50 @@ BACKUP_PATH="Agent-Ops/_autoloop-lab/{skill-name}"
 
 ---
 
+## step 7: 패키징 대기 (handoff-ready)
+
+볼트 반영 승인 완료 후, 스킬빌더로의 핸드오프를 준비한다. 세션 실험장을 삭제하지 않는다.
+
+### 7a: handoff.json 생성
+
+세션 실험장 루트에 `handoff.json` 생성. → [schemas.md](references/schemas.md) §handoff.json 참조
+
+```bash
+# 세션 실험장에 handoff.json 생성
+cat > $AUTOLOOP_LAB/{skill-name}/handoff.json << 'EOF'
+{
+  "skill_name": "{skill-name}",
+  "session_path": "$AUTOLOOP_LAB/{skill-name}/",
+  "baseline_score": {baseline},
+  "final_score": {final},
+  "kept_mutations": {N},
+  "total_experiments": {N},
+  "top_changes": [...],  // changelog에서 keep 변이 Top 3
+  "remaining_failures": [...],
+  "ready_for": "skill-builder"
+}
+EOF
+```
+
+### 7b: 볼트 백업
+
+```bash
+# changelog, results.tsv와 함께 handoff.json도 볼트에 백업
+BACKUP_PATH="Agent-Ops/_autoloop-lab/{skill-name}"
+# handoff.json → 볼트 백업 (DC 또는 Cowork Write)
+```
+
+### 7c: 스킬빌더 제안
+
+사용자에게 1줄 제안: **"스킬빌더로 패키징할까요?"**
+
+- 형이 "응" → `Skill tool`로 skill-builder 발동. 스킬빌더가 handoff.json을 감지하여 세션 실험장에서 직접 ②-b → ③ 진행.
+- 형이 "아니" → 종료. handoff.json은 볼트 백업에 남아 다음 세션에서 사용 가능.
+
+**왜 step 7인가:** 오토루프는 최적화 전문, 패키징은 스킬빌더 전문. 오토루프가 패키징까지 하면 책임 경계가 모호해진다. handoff.json이 두 스킬의 계약(contract)이다.
+
+---
+
 ## 속도 (v4.0 → v5.0)
 
 | 모드 | v4.0 호출/실험 | v5.0 호출/실험 | 개선 |
@@ -276,7 +320,7 @@ BACKUP_PATH="Agent-Ops/_autoloop-lab/{skill-name}"
 
 ## 완성도 체크
 
-baseline / binary eval / auto_scorable 표시 / α 판정 / 한 변이씩 / keep·discard 기록 / 대안키워드 / 자율 실행 / eval×input 매트릭스 / 프로파일 기록 / git(세션 로컬) / changelog 백업(매 keep) / 볼트 반영(사용자 승인 후). eval 통과 but 품질 안 올랐다면 → eval이 나쁨. step 2로.
+baseline / binary eval / auto_scorable 표시 / α 판정 / 한 변이씩 / keep·discard 기록 / 대안키워드 / 자율 실행 / eval×input 매트릭스 / 프로파일 기록 / git(세션 로컬) / changelog 백업(매 keep) / 볼트 반영(사용자 승인 후) / **handoff.json 생성 + 스킬빌더 제안**. eval 통과 but 품질 안 올랐다면 → eval이 나쁨. step 2로.
 
 ---
 
@@ -297,3 +341,5 @@ baseline / binary eval / auto_scorable 표시 / α 판정 / 한 변이씩 / keep
 - **baseline 부분 재사용:** SKILL.md 변경 시 스킵 불가. 기준 자체가 달라짐.
 - **대안키워드 누적:** changelog에 대안키워드가 10개+ 미시도 시 RAR에서 우선 소화.
 - **볼트 반영 자동화 금지:** step 6에서 반드시 사용자 승인 후 Write. 자동 반영 = 원본 오염 리스크.
+- **handoff.json 누락:** step 7을 건너뛰면 스킬빌더가 skills-plugin에서 구버전을 복사한다. 오토루프 종료 시 반드시 handoff.json 생성.
+- **세션 실험장 조기 삭제:** handoff.json이 있어도 실험장이 없으면 스킬빌더가 읽을 수 없다. step 7 이후 실험장 삭제 금지.
