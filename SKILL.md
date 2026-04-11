@@ -55,7 +55,7 @@ description: |
 4. **실험당 실행 횟수** — 기본값: 3
 5. **α 판정** — auto_scorable eval 수 / 전체 eval 수 → 모드 자동 결정
 6. **예산 상한** — 선택. 최대 실험 사이클 수
-7. **git repo** — autoloop-lab 경로 확인 (없으면 생략, 파일 기반 폴백)
+7. **git repo** — `AUTOLOOP_LAB = $HOME/Library/CloudStorage/Dropbox/ObsidianVault/Agent-Ops/_autoloop-lab` (없으면 FS로 디렉토리 생성 후 `git init`)
 
 ---
 
@@ -77,9 +77,9 @@ SKILL.md + references/ 읽기 → 핵심 작업·프로세스·출력 형식 파
 
 ## step 3: baseline
 
-### git (autoloop-lab 존재 시)
+### git (AUTOLOOP_LAB 기본 사용)
 
-`cp -r {skill-path}/ autoloop-lab/{skill-name}/` → `git checkout -b autoloop/{skill-name}` → `git commit -m "baseline"`. 없으면 파일 폴백.
+`cp -r {skill-path}/ AUTOLOOP_LAB/{skill-name}/` → `git checkout -b autoloop/{skill-name}` → `git commit -m "baseline"`. AUTOLOOP_LAB 미존재 시 FS로 생성+`git init`.
 
 ### baseline 스킵 — 부분 재사용 (v5.0)
 
