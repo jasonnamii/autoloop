@@ -1,7 +1,7 @@
 ---
 name: autoloop
 description: |
-  스킬 자동최적화 루프. 실행→채점→변이 반복. α(auto_scorable 비율) 기반 연속체 모드. v5.0: 토큰 압축(변이 1후보+대안키워드, lazy 로드), 병렬 실행, 귀인 검증, 단계별 프로파일.
+  스킬 자동최적화 루프. 실행→채점→변이 반복. α(auto_scorable 비율) 기반 연속체 모드. v6.0: 코워크 세션 네이티브 실행, 세션 유실 대비 백업, 볼트 오염 제거.
   P1: optimize, improve, autoloop, benchmark, eval, deep optimize, 스킬 최적화.
   P2: 돌려줘, 개선해줘, optimize this, run autoloop on, make better.
   P3: skill optimization, eval benchmark, mutation loop.
@@ -13,7 +13,20 @@ description: |
 
 에이전트가 반복 실행→채점→변이하며 30% 실패를 0%로 조여간다.
 
-**v5.0: 토큰 압축 + 병목 가시화.** 변이 1후보+대안키워드, α 연속체 모드, reference lazy 로드, 부분 baseline, 병렬 실행, 귀인 검증, 단계별 프로파일.
+**v6.0: 코워크 세션 네이티브.** 실험 전체가 코워크 세션 내에서 완결. 볼트는 Read(in)+Write(out) 2회만 접촉. 세션 유실 대비 changelog 백업 내장. v5.0 기반(1후보+대안키워드, α 연속체 모드, 병렬 실행, 귀인 검증, 단계별 프로파일).
+
+---
+
+## 실행 환경 원칙
+
+| 항목 | 위치 | 이유 |
+|------|------|------|
+| **실험장** | `/sessions/{session-id}/autoloop-lab/{skill-name}/` | 세션 = 샌드박스. git reset이 원본에 영향 없음 |
+| **볼트 원본** | `mnt/.claude/skills/{skill-name}/` 또는 볼트 경로 | Read only. 실험 시작 시 1회 복사 |
+| **최종 반영** | 볼트 원본 경로에 Write | 루프 종료 후 1회만 |
+| **changelog 백업** | 볼트 `Agent-Ops/_autoloop-lab/{skill-name}/changelog.md` | 세션 유실 대비. 매 keep마다 백업 |
+
+**절대 금지:** 볼트 안에서 git init/commit/reset 실행. 볼트는 지식 저장소지 실험실이 아니다.
 
 ---
 
@@ -49,13 +62,18 @@ description: |
 
 **멈춰라. 아래 항목이 모두 확인되기 전까지 실험을 시작하지 마라.**
 
-1. **대상 스킬** — SKILL.md 정확한 경로
+1. **대상 스킬** — 볼트 원본 SKILL.md 정확한 경로
 2. **테스트 입력** — 3개의 서로 다른 프롬프트/시나리오 (기본값. 사용자 지정 시 변경)
 3. **Eval 기준** — 3-6개 binary yes/no 체크. 각 eval에 `auto_scorable` 여부 표시. → [eval-guide.md](references/eval-guide.md) 참조 (이 시점에 로드)
 4. **실험당 실행 횟수** — 기본값: 3
 5. **α 판정** — auto_scorable eval 수 / 전체 eval 수 → 모드 자동 결정
 6. **예산 상한** — 선택. 최대 실험 사이클 수
-7. **git repo** — `AUTOLOOP_LAB = $HOME/Library/CloudStorage/Dropbox/ObsidianVault/Agent-Ops/_autoloop-lab` (없으면 FS로 디렉토리 생성 후 `git init`)
+7. **실행 환경 확인** — 코워크 세션 내에서만 실행. `AUTOLOOP_LAB = /sessions/{session-id}/autoloop-lab/` (세션 로컬)
+
+**왜 코워크 세션인가:**
+- 스킬은 코워크 세션에서 사용된다. 실험도 같은 환경(MCP·UP·마운트)에서 돌아야 eval 결과가 실사용과 일치한다.
+- 세션은 샌드박스이므로 `git reset --hard`가 볼트 원본을 오염시킬 수 없다.
+- 실험 잔해(중간 변이, discard된 커밋)가 볼트에 쌓이지 않는다.
 
 ---
 
@@ -77,17 +95,30 @@ SKILL.md + references/ 읽기 → 핵심 작업·프로세스·출력 형식 파
 
 ## step 3: baseline
 
-### git (AUTOLOOP_LAB 기본 사용)
+### 세션 로컬 셋업
 
-`cp -r {skill-path}/ AUTOLOOP_LAB/{skill-name}/` → `git checkout -b autoloop/{skill-name}` → `git commit -m "baseline"`. AUTOLOOP_LAB 미존재 시 FS로 생성+`git init`.
+```
+# 1. 볼트 원본을 세션 실험장으로 복사 (Read in — 1회)
+AUTOLOOP_LAB=/sessions/{session-id}/autoloop-lab
+mkdir -p $AUTOLOOP_LAB/{skill-name}
+cp -r {볼트-skill-path}/ $AUTOLOOP_LAB/{skill-name}/
 
-### baseline 스킵 — 부분 재사용 (v5.0)
+# 2. 세션 실험장에서 git 초기화
+cd $AUTOLOOP_LAB/{skill-name}
+git init && git add -A && git commit -m "baseline"
+```
+
+**볼트에는 git을 만들지 않는다.** 세션 로컬에서만 git을 사용한다.
+
+### baseline 스킵 — 부분 재사용
 
 | 조건 | 행동 |
 |------|------|
 | 이전 results.tsv 존재 + SKILL.md·eval·입력 **전부** 미변경 | 마지막 점수를 baseline으로 재사용. N회 실행 절약 |
 | eval 또는 입력 **일부만** 변경 | 변경되지 않은 eval×입력 조합은 이전 점수 재사용, 변경된 조합만 재실행 |
 | SKILL.md 변경 | 전체 재실행 (기준 자체가 달라짐) |
+
+**세션 간 재사용:** 이전 세션의 changelog 백업이 볼트에 있으면(`Agent-Ops/_autoloop-lab/{skill-name}/changelog.md`), 어디까지 진행했는지 확인하고 이어서 진행 가능. 단, SKILL.md가 변경됐으면 전체 재실행.
 
 ### baseline 실행
 
@@ -108,7 +139,7 @@ autoloop의 핵심. 시작하면 멈출 때까지 자율 실행한다.
 4a. 실패 분해 (+ 이전 판정 이유 흡수 + 프로파일 병목 확인)
 4b. 변이 생성 — 1후보 집중형 (대안키워드 저축)
 4c. 실행+채점 — 병렬 가능 시 병렬, 불가 시 순차
-4d. keep/discard + git commit/reset + 프로파일 기록
+4d. keep/discard + git commit/reset + 프로파일 기록 + changelog 백업
 4e. 정체 시 RAR + 귀인 검증
 ```
 
@@ -157,9 +188,9 @@ eval×input 매트릭스 + 이전 판정 이유 흡수. **v5.0 추가:** step_pr
 
 **Scorer 앵커링:** eval 프리앰블 복사 / Agent 격리 / drift 감지(3실험 연속 2:1→재작성) / auto_scorable→코드 필수.
 
-### 4d: keep/discard + 프로파일
+### 4d: keep/discard + 프로파일 + 백업
 
-- **keep:** `git commit -m "exp-{N}: keep — E{target} — {가설}"` + step_profile 기록
+- **keep:** `git commit -m "exp-{N}: keep — E{target} — {가설}"` + step_profile 기록 + **changelog 백업** (→ step 5 참조)
 - **discard:** `git reset --hard HEAD~1` + step_profile 기록
 - **판정 이유:** changelog에 1문장 + 대안키워드 → 다음 4a 입력
 
@@ -184,7 +215,7 @@ eval×input 매트릭스 + 이전 판정 이유 흡수. **v5.0 추가:** step_pr
 
 ---
 
-## step 5: changelog 작성
+## step 5: changelog 작성 + 백업
 
 매 실험 후 `changelog.md`에:
 
@@ -197,15 +228,37 @@ eval×input 매트릭스 + 이전 판정 이유 흡수. **v5.0 추가:** step_pr
 프로파일: 4b=[tokens]t, 4c=[tokens]t [duration]ms
 ```
 
+**세션 유실 대비 백업 (매 keep마다):**
+
+```bash
+# 볼트 백업 경로 (DC 또는 Cowork Write)
+BACKUP_PATH="Agent-Ops/_autoloop-lab/{skill-name}"
+# changelog.md + results.tsv를 볼트에 백업
+# → 다음 세션에서 이어서 진행 가능
+```
+
+백업 대상: `changelog.md`, `results.tsv`. SKILL.md 중간 변이는 백업하지 않는다 (git이 관리). discard 시에는 백업하지 않는다 (낭비).
+
 ---
 
-## step 6: 결과 전달
+## step 6: 결과 전달 + 볼트 반영
 
 → [schemas.md](references/schemas.md) 참조 (이 시점에 로드)
 
-루프 종료 시: ①점수 요약(Baseline→최종) ②실험 횟수+Keep율 ③효과적 변경 Top 3 ④남은 실패 ⑤개선된 SKILL.md 위치 ⑥git log (사용 시) ⑦프로파일 요약(병목 단계+총 토큰).
+### 결과 보고
 
-15회↑ → `python scripts/analyze_results.py autoloop-[skill-name]/`.
+루프 종료 시: ①점수 요약(Baseline→최종) ②실험 횟수+Keep율 ③효과적 변경 Top 3 ④남은 실패 ⑤git log ⑥프로파일 요약(병목 단계+총 토큰).
+
+15회↑ → `python scripts/analyze_results.py autoloop-lab/{skill-name}/`.
+
+### 볼트 반영 (Write out — 1회)
+
+```
+# 최종 개선된 SKILL.md + references/를 볼트 원본 경로에 Write
+# Cowork Write 또는 DC Write 사용. MCP(obsidian) write 사용 금지 (UP §OBSIDIAN).
+```
+
+**반영 전 확인:** ①Before/After diff를 사용자에게 보여준다 ②사용자 승인 후 Write. 자동 반영하지 않는다.
 
 ---
 
@@ -223,12 +276,14 @@ eval×input 매트릭스 + 이전 판정 이유 흡수. **v5.0 추가:** step_pr
 
 ## 완성도 체크
 
-baseline / binary eval / auto_scorable 표시 / α 판정 / 한 변이씩 / keep·discard 기록 / 대안키워드 / 자율 실행 / eval×input 매트릭스 / 프로파일 기록 / git(사용 시). eval 통과 but 품질 안 올랐다면 → eval이 나쁨. step 2로.
+baseline / binary eval / auto_scorable 표시 / α 판정 / 한 변이씩 / keep·discard 기록 / 대안키워드 / 자율 실행 / eval×input 매트릭스 / 프로파일 기록 / git(세션 로컬) / changelog 백업(매 keep) / 볼트 반영(사용자 승인 후). eval 통과 but 품질 안 올랐다면 → eval이 나쁨. step 2로.
 
 ---
 
 ## Gotchas
 
+- **볼트에서 git 금지:** 실험은 세션 로컬에서만. 볼트에 git init/commit/reset 절대 실행하지 않는다.
+- **세션 유실:** 매 keep마다 changelog+results.tsv를 볼트에 백업. 다음 세션에서 이어서 가능. SKILL.md 중간 변이는 유실될 수 있으나, changelog에서 재현 가능.
 - **뺑뺑이:** 3회 연속 discard 시 반드시 귀인 검증 먼저. RAR 직행 금지.
 - **병목 무시:** 프로파일 없이 최적화 대상 선정하면 감에 의존. 4c가 80%인데 4b를 줄여도 효과 미미.
 - **full 비용 폭발:** 내용적 eval 3개 이하로 시작.
@@ -241,3 +296,4 @@ baseline / binary eval / auto_scorable 표시 / α 판정 / 한 변이씩 / keep
 - **git reset 범위:** `HEAD~1`만. 2회 연속 discard는 각각 reset.
 - **baseline 부분 재사용:** SKILL.md 변경 시 스킵 불가. 기준 자체가 달라짐.
 - **대안키워드 누적:** changelog에 대안키워드가 10개+ 미시도 시 RAR에서 우선 소화.
+- **볼트 반영 자동화 금지:** step 6에서 반드시 사용자 승인 후 Write. 자동 반영 = 원본 오염 리스크.
