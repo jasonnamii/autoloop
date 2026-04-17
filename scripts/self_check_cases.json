@@ -1,0 +1,69 @@
+{
+  "version": "1.0",
+  "skill": "autoloop",
+  "description": "autoloop self-evaluation baseline cases. Used by scripts/self_check.py and as regression anchors when autoloop is modified.",
+  "cases": [
+    {
+      "id": "C1_alpha_detection",
+      "input": {
+        "evals": [
+          {"name": "has_header", "auto_scorable": true},
+          {"name": "wordcount_min", "auto_scorable": true},
+          {"name": "keyword_match", "auto_scorable": true}
+        ]
+      },
+      "expected": {
+        "alpha": 1.0,
+        "mode_alias": "turbo",
+        "experiments_budget": 2
+      },
+      "auto_scorable": true,
+      "checks": [
+        "α == auto_scorable_count / total_count",
+        "mode alias matches α band",
+        "experiments within recommended range"
+      ]
+    },
+    {
+      "id": "C2_baseline_skip_reuse",
+      "input": {
+        "prev_results_exists": true,
+        "skill_md_changed": false,
+        "evals_changed": false,
+        "inputs_changed": false
+      },
+      "expected": {
+        "action": "reuse_last_score",
+        "reexecution_count": 0
+      },
+      "auto_scorable": true,
+      "checks": [
+        "baseline reuse triggered when all inputs unchanged",
+        "no redundant N-run execution"
+      ]
+    },
+    {
+      "id": "C3_hardcap_termination",
+      "input": {
+        "alpha": 0.7,
+        "mode_alias": "light",
+        "budget_specified": false,
+        "iterations_run": 9
+      },
+      "expected": {
+        "terminate": true,
+        "reason": "hardcap_reached",
+        "hardcap_value": 9
+      },
+      "auto_scorable": true,
+      "checks": [
+        "hardcap = alpha_recommended * 3 when budget unspecified",
+        "terminate + report instead of infinite loop"
+      ]
+    }
+  ],
+  "threshold": {
+    "pass_rate_target": 1.0,
+    "min_pass_to_promote": 0.66
+  }
+}
