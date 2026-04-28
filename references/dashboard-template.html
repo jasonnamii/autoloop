@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>autoloop · dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #fafaf7;
+    --fg: #1c1c1c;
+    --muted: #6b6b6b;
+    --accent: #2563eb;
+    --keep: #16a34a;
+    --discard: #dc2626;
+    --baseline: #2563eb;
+    --card: #ffffff;
+    --border: #e5e5e5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    margin: 0;
+    padding: 24px;
+    line-height: 1.5;
+  }
+  header { margin-bottom: 24px; }
+  h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px 0; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .panel h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  th { font-weight: 600; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+  tr.keep td:nth-child(5) { color: var(--keep); font-weight: 600; }
+  tr.discard td:nth-child(5) { color: var(--discard); font-weight: 600; }
+  tr.baseline td:nth-child(5) { color: var(--baseline); font-weight: 600; }
+  .bars { display: flex; gap: 3px; align-items: flex-end; height: 60px; margin-top: 6px; }
+  .bar { flex: 1; min-width: 8px; border-radius: 2px 2px 0 0; }
+  .bar.keep { background: var(--keep); }
+  .bar.discard { background: var(--discard); }
+  .bar.baseline { background: var(--baseline); }
+  .status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .status-running { background: #fef3c7; color: #92400e; }
+  .status-complete { background: #d1fae5; color: #065f46; }
+  .status-idle { background: #e5e7eb; color: #374151; }
+  #chart-wrap { height: 280px; position: relative; }
+  .eval-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .eval-row:last-child { border-bottom: none; }
+  .eval-bar-bg { width: 120px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .eval-bar-fill { height: 100%; background: var(--keep); }
+  footer { color: var(--muted); font-size: 11px; text-align: center; margin-top: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>autoloop · <span id="skill-name">—</span></h1>
+  <div class="meta">
+    <span class="status-pill" id="status-pill">idle</span>
+    <span style="margin-left: 8px;" id="last-update">—</span>
+  </div>
+</header>
+
+<div class="grid">
+  <div class="stat"><div class="stat-label">baseline</div><div class="stat-value" id="stat-baseline">—</div></div>
+  <div class="stat"><div class="stat-label">best</div><div class="stat-value" id="stat-best">—</div></div>
+  <div class="stat"><div class="stat-label">current</div><div class="stat-value" id="stat-current">—</div></div>
+  <div class="stat"><div class="stat-label">experiments</div><div class="stat-value" id="stat-count">—</div></div>
+</div>
+
+<div class="panel">
+  <h2>score progression</h2>
+  <div id="chart-wrap"><canvas id="chart"></canvas></div>
+  <div class="bars" id="bars"></div>
+</div>
+
+<div class="panel">
+  <h2>experiments</h2>
+  <table>
+    <thead>
+      <tr><th>#</th><th>score</th><th>pass rate</th><th>target</th><th>status</th><th>description</th></tr>
+    </thead>
+    <tbody id="exp-tbody"></tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <h2>per-eval breakdown</h2>
+  <div id="eval-list"></div>
+</div>
+
+<footer>auto-refresh every 10s · reads results.json</footer>
+
+<script>
+let chart = null;
+
+async function load() {
+  try {
+    const res = await fetch('results.json?t=' + Date.now());
+    if (!res.ok) return;
+    const d = await res.json();
+    render(d);
+  } catch (e) {
+    console.warn('load failed', e);
+  }
+}
+
+function render(d) {
+  document.getElementById('skill-name').textContent = d.skill_name || '—';
+  document.getElementById('stat-baseline').textContent = d.baseline_score != null ? d.baseline_score + '%' : '—';
+  document.getElementById('stat-best').textContent = d.best_score != null ? d.best_score + '%' : '—';
+  const cur = d.experiments && d.experiments.length ? d.experiments[d.experiments.length - 1] : null;
+  document.getElementById('stat-current').textContent = cur ? cur.pass_rate + '%' : '—';
+  document.getElementById('stat-count').textContent = d.experiments ? d.experiments.length : '—';
+
+  const pill = document.getElementById('status-pill');
+  pill.textContent = d.status || 'idle';
+  pill.className = 'status-pill status-' + (d.status || 'idle');
+  document.getElementById('last-update').textContent = 'updated ' + new Date().toLocaleTimeString();
+
+  // chart
+  const labels = (d.experiments || []).map(e => '#' + e.id);
+  const scores = (d.experiments || []).map(e => e.pass_rate);
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('chart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'pass rate %',
+        data: scores,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+        tension: 0.2,
+        fill: true,
+        pointRadius: 4,
+        pointBackgroundColor: scores.map((_, i) => {
+          const s = (d.experiments[i] || {}).status;
+          return s === 'keep' ? '#16a34a' : s === 'discard' ? '#dc2626' : '#2563eb';
+        })
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { y: { beginAtZero: false, max: 100 } },
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  // bars
+  const barsEl = document.getElementById('bars');
+  barsEl.innerHTML = '';
+  (d.experiments || []).forEach(e => {
+    const bar = document.createElement('div');
+    bar.className = 'bar ' + (e.status || 'baseline');
+    bar.style.height = (e.pass_rate || 0) + '%';
+    bar.title = '#' + e.id + ' · ' + e.pass_rate + '%';
+    barsEl.appendChild(bar);
+  });
+
+  // table
+  const tbody = document.getElementById('exp-tbody');
+  tbody.innerHTML = '';
+  (d.experiments || []).forEach(e => {
+    const tr = document.createElement('tr');
+    tr.className = e.status || '';
+    tr.innerHTML = `
+      <td>${e.id}</td>
+      <td>${e.score}/${e.max_score}</td>
+      <td>${e.pass_rate}%</td>
+      <td>${e.target || '—'}</td>
+      <td>${e.status || '—'}</td>
+      <td>${e.description || ''}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // eval breakdown
+  const evalList = document.getElementById('eval-list');
+  evalList.innerHTML = '';
+  (d.eval_breakdown || []).forEach(ev => {
+    const pct = ev.total ? Math.round(100 * ev.pass_count / ev.total) : 0;
+    const row = document.createElement('div');
+    row.className = 'eval-row';
+    row.innerHTML = `
+      <span>${ev.name}</span>
+      <span style="display: flex; gap: 10px; align-items: center;">
+        <span style="color: var(--muted); font-size: 12px;">${ev.pass_count}/${ev.total}</span>
+        <span class="eval-bar-bg"><span class="eval-bar-fill" style="width: ${pct}%"></span></span>
+        <span style="font-weight: 600; min-width: 36px; text-align: right;">${pct}%</span>
+      </span>
+    `;
+    evalList.appendChild(row);
+  });
+}
+
+load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>

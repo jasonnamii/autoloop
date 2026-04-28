@@ -1,11 +1,11 @@
 ---
 name: autoloop
 description: |
-  스킬 자동최적화 루프. 실행→채점→변이 반복. α 연속체 모드. v6.3: 허브 슬림(5KB)+자체 점검 내장. v6.1 스킬빌더 핸드오프(handoff.json) 완료 후 패키징 직행. 코워크 세션 네이티브, 세션 유실 백업, 볼트 오염 제거.
-  P1: optimize, improve, autoloop, benchmark, eval, deep optimize, 스킬 최적화.
+  스킬 자동최적화 루프. 실행→채점→변이 반복. α 연속체 모드. v6.4: 라이브 HTML 대시보드 + 변이 가드 4종 + RAR 탈출구 4갈래. v6.3 허브 슬림(5KB)+자체 점검. v6.1 스킬빌더 핸드오프(handoff.json) 완료 후 패키징 직행. 코워크 세션 네이티브, 세션 유실 백업, 볼트 오염 제거.
+  P1: optimize, improve, autoloop, benchmark, eval, deep optimize, 스킬 최적화, dashboard, 대시보드.
   P2: 돌려줘, 개선해줘, optimize this, run autoloop on, make better.
-  P3: skill optimization, eval benchmark, mutation loop.
-  P5: improved SKILL.md, results log, changelog.
+  P3: skill optimization, eval benchmark, mutation loop, live dashboard.
+  P5: improved SKILL.md, results log, changelog, dashboard.html.
   NOT: 프롬프트엔지니어링(→직접수행), 플러그인(→create-cowork-plugin), 스킬생성(→skill-builder), 패키징(→skill-builder).
 vault_dependency: HARD
 ---
@@ -13,6 +13,8 @@ vault_dependency: HARD
 # autoloop — 스킬 자동최적화 루프
 
 에이전트가 반복 실행→채점→변이하며 실패를 조여간다. **benchmark → optimize → improve** 1턴 루프로 스킬을 성장시킨다.
+
+**v6.4:** 라이브 HTML 대시보드(autoresearch venom #1) + 변이 가드 4종(#2) + RAR 탈출구 4갈래(#3) + eval 모범 차분 머지(#4). 세션 자리 비워도 브라우저로 진행 추적. `references/dashboard-template.html`·`scripts/gen_dashboard.py` 신설. 기능 로직 무변경 — 가시성·가드만 강화.
 
 **v6.3:** 허브 슬림화. step 0~7 상세는 `references/execution-steps.md`로 분리, 허브에는 절대 규칙·분기·포인터만 유지. `evals/cases.json`·`scripts/self_check.py`·`CHANGELOG.md` 신설.
 
@@ -27,6 +29,8 @@ vault_dependency: HARD
 | 3 | **한 변이 = 한 eval 타겟 = 한 가설** — 복합 변이는 귀인 불가 | keep/discard 판정이 귀인 가능해야 함 |
 | 4 | **handoff.json 생성 + 세션 실험장 유지** (step 7) | 스킬빌더가 실험장에서 직접 패키징. 실험장 삭제 시 구버전 복사됨 |
 | 5 | **auto_scorable=no인 내용적 eval은 별도 Agent로 다수결 채점** (α<0.5) | 동일 컨텍스트 채점은 scorer drift 발생 |
+| 6 | **변이 가드 4종 — bad mutation 즉시 폐기** — ①전체 재작성 ②다중룰 동시추가(2개+) ③길이 팽창만(가설 없는 추가) ④모호 지시("더 잘", "be creative") | 귀인 불가 + eval 게이밍 위험. → [loop-mechanics.md §변이 가드](references/loop-mechanics.md) |
+| 7 | **라이브 대시보드 step 3-bis 강제** — baseline 생성 직후 `dashboard.html`·`results.json` 생성 + 가능 시 `open dashboard.html`. 미생성 = FAIL | 자리 비워도 진행 시각 추적. results.tsv만으론 형이 못 봄 |
 
 ---
 
@@ -80,7 +84,8 @@ vault_dependency: HARD
 | 1 | 스킬 읽기 + reference 1회 캐싱 | 루프 중 재로딩 금지 (토큰 ~30% 절감) |
 | 2 | eval 스위트 구성 | binary yes/no + `auto_scorable` 표시 → α 산출 |
 | 3 | baseline | 세션 로컬 git init + N회 실행 + 프로파일 |
-| 4 | 실험 루프 | 4a 실패분해 → 4b 변이 → 4c 실행채점(병렬) → 4d keep/discard → 4e RAR+귀인 |
+| **3-bis** | **라이브 대시보드 생성** | `python scripts/gen_dashboard.py` → `dashboard.html`·`results.json` → 가능 시 `open` |
+| 4 | 실험 루프 | 4a 실패분해 → 4b 변이(가드 4종) → 4c 실행채점(병렬) → 4d keep/discard + JSON 갱신 → 4e RAR+귀인 |
 | 5 | changelog 작성 + 백업 | 매 keep마다 볼트 백업 |
 | 6 | 결과 전달 + 볼트 반영 | Before/After diff → 사용자 승인 → Write |
 | 7 | 패키징 대기 (handoff-ready) | handoff.json 생성 → "스킬빌더로 패키징할까요?" |
@@ -125,6 +130,8 @@ python scripts/self_check.py /sessions/{session-id}/mnt/.claude/skills/autoloop/
 ## Gotchas
 
 - **뺑뺑이:** 3회 연속 discard 시 반드시 귀인 검증 먼저. RAR 직행 금지.
+- **아이디어 고갈 → 4갈래 탈출구** (RAR 후에도 막히면): ①실패 출력 재읽기(원본 텍스트 복귀) ②near-miss 두 변이 결합 ③제거 방향 변이(추가 대신 삭제) ④단순화도 keep — 점수 유지하면서 줄였다면 win. → [loop-mechanics.md §탈출구](references/loop-mechanics.md)
+- **bad mutation 4종 즉시 폐기:** 전체 재작성·다중룰 동시추가·길이 팽창만·모호 지시 — 절대 규칙 #6에 의거 실험 전 자체 차단.
 - **병목 무시:** 프로파일 없이 최적화 대상 선정하면 감에 의존. 4c가 80%인데 4b를 줄여도 효과 미미.
 - **full 비용 폭발:** 내용적 eval 3개 이하로 시작.
 - **RAR:** 3회 연속 discard가 적정. 2회에 발동하면 미시도 변이를 건너뜀.
@@ -137,3 +144,5 @@ python scripts/self_check.py /sessions/{session-id}/mnt/.claude/skills/autoloop/
 - **대안키워드 누적:** changelog에 대안키워드 10개+ 미시도 시 RAR에서 우선 소화.
 - **handoff.json 누락:** step 7 건너뛰면 스킬빌더가 skills-plugin에서 구버전을 복사한다. 루프 종료 시 반드시 생성.
 - **세션 실험장 조기 삭제:** handoff.json이 있어도 실험장이 없으면 스킬빌더가 읽을 수 없다. step 7 이후 삭제 금지.
+- **대시보드 미생성:** step 3-bis 스킵 시 형이 진행 상황을 모른다. baseline 직후 무조건 생성. 코워크 환경에서 `open` 미동작 시 파일 경로만 안내해도 OK(파일 자체는 생성 필수).
+- **results.json 미갱신:** 매 4d 직후 `gen_dashboard.py --update` 호출 누락하면 대시보드가 멈춰있는 것처럼 보임. keep/discard 기록과 동시에 JSON도 갱신.
