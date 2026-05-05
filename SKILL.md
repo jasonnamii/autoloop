@@ -1,12 +1,13 @@
 ---
 name: autoloop
 description: |
-  스킬 자동최적화 루프. 실행→채점→변이 반복. α 연속체 모드. v6.4: 라이브 HTML 대시보드 + 변이 가드 4종 + RAR 탈출구 4갈래. v6.3 허브 슬림(5KB)+자체 점검. v6.1 스킬빌더 핸드오프(handoff.json) 완료 후 패키징 직행. 코워크 세션 네이티브, 세션 유실 백업, 볼트 오염 제거.
-  P1: optimize, improve, autoloop, benchmark, eval, deep optimize, 스킬 최적화, dashboard, 대시보드.
-  P2: 돌려줘, 개선해줘, optimize this, run autoloop on, make better.
-  P3: skill optimization, eval benchmark, mutation loop, live dashboard.
-  P5: improved SKILL.md, results log, changelog, dashboard.html.
-  NOT: 프롬프트엔지니어링(→직접수행), 플러그인(→create-cowork-plugin), 스킬생성(→skill-builder), 패키징(→skill-builder).
+  스킬 자동최적화 루프. 실행→채점→변이 반복. α 연속체 모드. v6.4: 라이브 HTML 대시보드 + 변이 가드 4종 + RAR 탈출구 4갈래.
+    P1: optimize, improve, autoloop, benchmark, eval, deep optimize, 스킬 최적화, dashboard, 대시보드, 오토루프, 자동최적화, 스킬개선, 스킬벤치마크, 스킬평가, 반복최적화, 루프최적화, 뮤테이션, 변이최적화, 스킬루프, 최적화루프, autoloop 돌려, 스킬 돌려.
+    P2: 돌려줘, 개선해줘, optimize this, run autoloop on, make better, 최적화해줘, 스킬 개선해줘, 벤치마크해줘, eval 돌려줘.
+    P3: skill optimization, eval benchmark, mutation loop, live dashboard, automated skill improvement, iterative optimization.
+    P4: 스킬 성능 개선이 필요할 때, 반복 최적화가 필요할 때, 스킬 벤치마킹할 때.
+    P5: improved SKILL.md, results log, changelog, dashboard.html.
+    NOT: 프롬프트엔지니어링(→직접수행), 플러그인(→cowork-plugin-management:create-cowork-plugin), 스킬생성(→skill-builder), 패키징(→skill-builder).
 vault_dependency: HARD
 ---
 
